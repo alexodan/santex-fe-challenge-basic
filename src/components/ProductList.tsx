@@ -1,5 +1,6 @@
 import { useQuery, gql, useMutation } from '@apollo/client';
 import styled from 'styled-components';
+import { GET_CURRENT_ORDER } from './Header';
 
 const GET_PRODUCTS = gql`
   query GetProducts($options: ProductListOptions) {
@@ -23,23 +24,26 @@ const GET_PRODUCTS = gql`
 `;
 
 const ADD_ITEM_TO_ORDER = gql`
-  mutation AddItemToOrder($productId: ID!, $variantId: ID!, $quantity: Int!) {
-    addItemToOrder(productVariantId: $variantId, quantity: $quantity) {
-      id
-      total
-      lines {
-        productVariant {
-          id
-          name
-          price
+  mutation AddItemToOrder($productVariantId: ID!, $quantity: Int!) {
+    addItemToOrder(productVariantId: $productVariantId, quantity: $quantity) {
+      ... on Order {
+        id
+        total
+        lines {
+          productVariant {
+            id
+            name
+            price
+          }
+          quantity
         }
-        quantity
       }
     }
   }
 `;
 
 const BuyButton = styled.button`
+  cursor: pointer;
   background-color: #007bff;
   color: white;
   padding: 10px 20px;
@@ -47,6 +51,10 @@ const BuyButton = styled.button`
   border-radius: 5px;
   cursor: pointer;
   margin-top: 10px;
+  &:disabled {
+    background-color: #ccc;
+    cursor: not-allowed;
+  }
 `;
 
 const Grid = styled.div`
@@ -98,27 +106,28 @@ export function ProductList() {
       },
     },
   });
-  const [addItemToOrder] = useMutation(ADD_ITEM_TO_ORDER);
+  const [addItemToOrder] = useMutation(ADD_ITEM_TO_ORDER, {
+    refetchQueries: [{ query: GET_CURRENT_ORDER }],
+  });
 
   if (loading) return <p>Loading...</p>;
   if (error) return <p>Error :(</p>;
 
   return (
     <Grid>
-      {data.products.map((product: any) => (
+      {data.products.items.map((product: any) => (
         <GridItem key={product.id}>
           <Card>
-            <CardMedia alt={product.name} src={product.variants[0].image.url} />
             <CardContent>
               <Title>{product.name}</Title>
               <Description>{product.description}</Description>
               <Price>${product.variants[0].price}</Price>
               <BuyButton
+                disabled={loading}
                 onClick={() =>
                   addItemToOrder({
                     variables: {
-                      productId: product.id,
-                      variantId: product.variants[0].id,
+                      productVariantId: product.id,
                       quantity: 1,
                     },
                   })
